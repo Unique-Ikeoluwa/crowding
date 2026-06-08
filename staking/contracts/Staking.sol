@@ -4,19 +4,15 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Staking is Ownable, ReentrancyGuard, Pausable {
 
     struct Stake {
         uint256 amount;        
-
         uint256 timestamp;      
         uint256 lastClaimedAt;   
         bool active;             
     }
-
-    IERC20 public immutable rewardToken; 
 
     uint256 public constant LOCK_PERIOD = 7 days;
     uint256 public constant PENALTY_PCT = 10;
@@ -28,7 +24,6 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
 
     bool public emergencyMode;
 
-
     mapping(address => Stake[]) public userStakes;
 
     event StakeCreated(address indexed user, uint256 index, uint256 amount, uint256 apr);
@@ -36,10 +31,9 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
     event StakeWithdrawn(address indexed user, uint256 index, uint256 principal, uint256 reward);
     event PenaltyApplied(address indexed user, uint256 amount);
     event EmergencyModeToggled(bool enabled);
+    event RewardsFunded(address indexed owner, uint256 amount);
 
-    constructor(address _rewardToken) Ownable(msg.sender) {
-        rewardToken = IERC20(_rewardToken);
-    }
+    constructor() Ownable(msg.sender) {}
 
     function stake() external payable whenNotPaused nonReentrant {
         require(msg.value > 0, "Cannot stake zero ETH");
@@ -70,8 +64,8 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
         uint256 reward = calculateReward(msg.sender, index);
         uint256 principal = userStake.amount;
 
-
         userStake.active = false;
+        userStake.lastClaimedAt = block.timestamp; 
         totalStaked -= principal;
 
         if (block.timestamp < userStake.timestamp + LOCK_PERIOD) {
@@ -80,13 +74,16 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
             totalPenaltiesCollected += penalty;
             emit PenaltyApplied(msg.sender, penalty);
         }
+
+        uint256 totalPayout = principal;
         if (reward > 0) {
             totalRewardsPaid += reward;
-            require(rewardToken.transfer(msg.sender, reward), "Reward transfer failed");
+            totalPayout += reward;
         }
 
-        (bool success, ) = payable(msg.sender).call{value: principal}("");
+        require(address(this).balance >= totalPayout, "Insufficient contract balance for rewards");
 
+        (bool success, ) = payable(msg.sender).call{value: totalPayout}("");
         require(success, "ETH transfer failed");
 
         emit StakeWithdrawn(msg.sender, index, principal, reward);
@@ -98,12 +95,13 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
         require(userStake.active, "Stake not active");
 
         uint256 principal = userStake.amount;
+        
         userStake.active = false;
+        userStake.lastClaimedAt = block.timestamp;
         totalStaked -= principal;
 
         (bool success, ) = payable(msg.sender).call{value: principal}("");
         require(success, "ETH transfer failed");
-
 
         emit StakeWithdrawn(msg.sender, index, principal, 0);
     }
@@ -129,7 +127,6 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
     }
 
     function _claimReward(address user, uint256 index) internal {
-
         Stake storage userStake = userStakes[user][index];
         require(userStake.active, "Stake not active");
 
@@ -139,24 +136,41 @@ contract Staking is Ownable, ReentrancyGuard, Pausable {
         userStake.lastClaimedAt = block.timestamp;
         totalRewardsPaid += reward;
 
-        require(rewardToken.transfer(user, reward), "Reward transfer failed");
+        require(address(this).balance >= reward, "Insufficient contract balance for rewards");
+
+        (bool success, ) = payable(user).call{value: reward}("");
+        require(success, "Reward transfer failed");
+        
         emit RewardClaimed(user, index, reward);
     }
 
     function pause() external onlyOwner {
         _pause();
     }
+
     function unpause() external onlyOwner {
         _unpause();
     }
+
     function toggleEmergencyMode() external onlyOwner {
         emergencyMode = !emergencyMode;
         emit EmergencyModeToggled(emergencyMode);
     }
-    function withdrawFees(uint256 amount) external onlyOwner {
-        payable(owner()).transfer(amount);
+
+    function fundRewardPool() external payable onlyOwner {
+        require(msg.value > 0, "Must send ETH to fund");
+        emit RewardsFunded(msg.sender, msg.value);
     }
+
+    function withdrawPenalties() external onlyOwner nonReentrant {
+        uint256 balance = totalPenaltiesCollected;
+        require(balance > 0, "No penalties collected");
+        
+        totalPenaltiesCollected = 0;
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Withdrawal failed");
+    }
+
+
     receive() external payable {}
 }
-
-

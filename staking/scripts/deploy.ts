@@ -10,25 +10,28 @@ async function main() {
   console.log("Starting Deployment on Network:", networkName);
   console.log("-----------------------------------------");
 
-  console.log("Deploying Mock Reward Token (MockERC20)...");
-  const RewardTokenFactory = await ethers.getContractFactory("MockERC20");
-  const rewardToken = await RewardTokenFactory.deploy("Reward Token", "RWD");
-  await rewardToken.waitForDeployment();
-  const rewardTokenAddress = await rewardToken.getAddress();
-  console.log(`✅ Reward Token deployed to: ${rewardTokenAddress}`);
+  const [deployer] = await ethers.getSigners();
+  const balanceBefore = await ethers.provider.getBalance(deployer.address);
+  console.log(`Deployer Address: ${deployer.address}`);
+  console.log(`Deployer Balance: ${ethers.formatEther(balanceBefore)} ETH`);
 
-  console.log("\nDeploying Decentralized Staking Contract...");
-  const StakingFactory = await ethers.getContractFactory("DecentralizedStaking");
-  const staking = await StakingFactory.deploy(rewardTokenAddress);
+  console.log("\nDeploying Native ETH Staking Contract...");
+  const StakingFactory = await ethers.getContractFactory("Staking");
+  
+  const staking = await StakingFactory.deploy();
   await staking.waitForDeployment();
   const stakingAddress = await staking.getAddress();
   console.log(`✅ Staking Contract deployed to: ${stakingAddress}`);
 
-  console.log("\nFunding Staking Contract with rewards...");
-  const fundingAmount = ethers.parseEther("100000"); 
-  const mintTx = await rewardToken.mint(stakingAddress, fundingAmount);
-  await mintTx.wait();
-  console.log(`✅ Minted ${ethers.formatEther(fundingAmount)} RWD tokens.`);
+  console.log("\nFunding Staking Contract Reward Pool with native ETH...");
+  const fundingAmount = ethers.parseEther("0.05"); 
+  
+  const fundTx = await staking.fundRewardPool({ value: fundingAmount });
+  await fundTx.wait();
+  console.log(`✅ Funded reward pool with ${ethers.formatEther(fundingAmount)} Sepolia ETH.`);
+
+  const contractBalance = await ethers.provider.getBalance(stakingAddress);
+  console.log(`📊 Total Staking Contract Balance: ${ethers.formatEther(contractBalance)} ETH`);
 
   console.log("\n-----------------------------------------");
   console.log("Deployment Process Complete!");

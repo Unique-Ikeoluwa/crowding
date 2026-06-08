@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { BrowserProvider, Contract, formatEther, parseEther } from 'ethers';
-import { STAKING_CONTRACT_ADDRESS, SEPOLIA_CHAIN_ID, STAKING_ABI } from "@/config/contracts"
+import { STAKING_CONTRACT_ADDRESS, STAKING_ABI } from "@/config/contracts"
 
 interface Stake {
   amount: bigint;
@@ -13,7 +13,7 @@ interface Stake {
 }
 
 export default function Home() {
-  const [account, setAccount] = useState<string | null>(null);
+    const [account, setAccount] = useState<string | null>(null);
   const [isWrongNetwork, setIsWrongNetwork] = useState(false);
   
   const [stakeAmount, setStakeAmount] = useState('');
@@ -39,7 +39,6 @@ export default function Home() {
         await requestNetworkSwitch();
         return;
       }
-
       
       setIsWrongNetwork(false);
       const accounts = await provider.send("eth_requestAccounts", []);
@@ -50,53 +49,88 @@ export default function Home() {
   };
 
   const requestNetworkSwitch = async () => {
-  if (!window.ethereum) {
-    setTxError("MetaMask is not installed.");
-    return;
-  }
-
-  const cleanChainId = "0xaa36a7"; 
-
-  try {
-    await window.ethereum.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: cleanChainId }],
-    });
-    setIsWrongNetwork(false);
-    setTxError(null);
-  } catch (switchError: any) {
-    if (switchError.code === 4902 || switchError.data?.originalError?.code === 4902) {
-      try {
-        console.log("Sepolia not found in MetaMask. Attempting to add network...");
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [
-            {
-              chainId: cleanChainId,
-              chainName: 'Sepolia Test Network',
-              nativeCurrency: {
-                name: 'Sepolia ETH',
-                symbol: 'ETH',
-                decimals: 18,
-              },
-              rpcUrls: ['https://ancilia.com', 'https://blastapi.io'],
-              blockExplorerUrls: ['https://etherscan.io'],
-            },
-          ],
-        });
-        setIsWrongNetwork(false);
-        setTxError(null);
-      } catch (addError: any) {
-        setTxError("Failed to automatically add Sepolia network to MetaMask.");
-      }
-    } else if (switchError.code === 4001) {
-      setTxError("User rejected the network switch request.");
-    } else {
-      setTxError("Please switch your MetaMask network to Sepolia manually.");
+    if (!window.ethereum) {
+      setTxError("MetaMask is not installed.");
+      return;
     }
-  }
-};
 
+    const cleanChainId = "0xaa36a7"; 
+
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: cleanChainId }],
+      });
+      setIsWrongNetwork(false);
+      setTxError(null);
+    } catch (switchError: any) {
+      if (switchError.code === 4902 || switchError.data?.originalError?.code === 4902) {
+        try {
+          console.log("Sepolia not found in MetaMask. Attempting to add network...");
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: cleanChainId,
+                chainName: 'Sepolia Test Network',
+                nativeCurrency: {
+                  name: 'Sepolia ETH',
+                  symbol: 'ETH',
+                  decimals: 18,
+                },
+                rpcUrls: ['https://ankr.com', 'https://ethereum-sepolia-rpc.publicnode.com'],
+                blockExplorerUrls: ['https://etherscan.io'],
+              },
+            ],
+          });
+          setIsWrongNetwork(false);
+          setTxError(null);
+        } catch (addError: any) {
+          setTxError("Failed to automatically add Sepolia network to MetaMask.");
+        }
+      } else if (switchError.code === 4001) {
+        setTxError("User rejected the network switch request.");
+      } else {
+        setTxError("Please switch your MetaMask network to Sepolia manually.");
+      }
+    }
+  };
+
+  useEffect(() => {
+    const ethereumProvider = window.ethereum;
+    if (!ethereumProvider) return;
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        setAccount(null);
+      } else {
+        setAccount(accounts[0]);
+      }
+    };
+
+    const handleChainChanged = () => {
+      window.location.reload();
+    };
+
+    ethereumProvider.on('accountsChanged', handleAccountsChanged);
+    ethereumProvider.on('chainChanged', handleChainChanged);
+
+    return () => {
+      ethereumProvider.removeListener('accountsChanged', handleAccountsChanged);
+      ethereumProvider.removeListener('chainChanged', handleChainChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (account && !isWrongNetwork) {
+      fetchDashboardData();
+      const interval = setInterval(() => {
+        fetchDashboardData();
+      }, 12000);
+
+      return () => clearInterval(interval);
+    }
+  }, [account, isWrongNetwork]);
 
   const fetchDashboardData = async () => {
     if (!account || isWrongNetwork || !window.ethereum) return;
@@ -210,11 +244,7 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    if (account) fetchDashboardData();
-  }, [account, isWrongNetwork]);
-
-    return (
+  return (
     <main className="min-h-screen bg-slate-900 text-white p-8 font-sans">
       <header className="max-w-6xl mx-auto flex-col md:flex-row flex justify-between items-start md:items-center border-b border-slate-800 pb-6 mb-8">
         <h1 className="text-2xl font-bold tracking-tight pb-2 sm:pb-0 text-blue-400">Decentralized Staking</h1>
@@ -231,7 +261,6 @@ export default function Home() {
       </header>
 
       <section className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Network and Validation Alerts */}
         {isWrongNetwork && (
           <div className="md:col-span-3 bg-red-950 border border-red-800 text-red-200 p-4 rounded-xl flex justify-between items-center">
             <span>⚠️ Network Mismatch detected. Contract operates exclusively on the Sepolia network.</span>
@@ -241,7 +270,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Transaction Pipeline Banner */}
         {txStatus !== 'idle' && (
           <div className={`md:col-span-3 p-4 rounded-xl border font-medium text-sm flex items-center gap-3 ${
             txStatus === 'waiting-signature' ? 'bg-amber-950 border-amber-800 text-amber-200 animate-pulse' :
@@ -262,13 +290,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Total Platform Metrics Card */}
         <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between">
           <p className="text-slate-400 text-sm font-medium">Total Pool Liquidity Staked</p>
           <p className="text-4xl font-extrabold text-white my-2">{totalStaked} <span className="text-xl text-blue-400">ETH</span></p>
         </div>
 
-        {/* Interaction Form Card */}
         <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl md:col-span-2">
           <h2 className="text-lg font-semibold mb-4 text-slate-200">Stake Native Sepolia ETH</h2>
           <form onSubmit={handleStake} className="flex flex-col md:flex-row gap-4">
@@ -292,7 +318,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* User Portfolio Positions Table & History Logs */}
       <section className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl md:col-span-2">
           <h2 className="text-lg font-semibold mb-4 text-slate-200">Your Active Staking Positions</h2>
@@ -301,28 +326,48 @@ export default function Home() {
             <p className="text-slate-500 text-sm py-4">No active stake allocation found for this public key.</p>
           ) : (
             <div className="space-y-4">
-              {userStakes.map((stake, idx) => stake.active && (
-                <div key={idx} className="bg-slate-900 border border-slate-700 p-4 rounded-xl flex justify-between items-center">
-                  <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Position #{idx}</p>
-                    <p className="text-lg font-bold text-white">{formatEther(stake.amount)} ETH</p>
-                    <p className="text-xs text-green-400 font-medium">Claimable Rewards: {stake.rewardEarned} RWD</p>
+              {userStakes.map((stake, idx) => {
+                if (!stake.active) return null;
+
+                const isLocked = Number(stake.timestamp) + (7 * 24 * 60 * 60) > Math.floor(Date.now() / 1000);
+
+                return (
+                  <div key={idx} className="bg-slate-900 border border-slate-700 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Position #{idx}</p>
+                        {isLocked ? (
+                          <span className="bg-amber-900/50 text-amber-400 border border-amber-800/60 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Locked (10% early penalty)</span>
+                        ) : (
+                          <span className="bg-green-900/50 text-green-400 border border-green-800/60 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Unlocked</span>
+                        )}
+                      </div>
+                      <p className="text-lg font-bold text-white">{formatEther(stake.amount)} ETH</p>
+                      <p className="text-xs text-green-400 font-medium">Claimable Rewards: {stake.rewardEarned} ETH</p>
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto justify-end">
+                      <button onClick={() => handleClaim(idx)} className="bg-slate-800 hover:bg-slate-700 border border-slate-600 px-4 py-2 rounded-lg text-xs font-bold transition">
+                        Claim
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (isLocked && !window.confirm("Warning: This position is locked for 7 days. Unstaking early applies an immediate 10% principal reduction penalty. Proceed?")) {
+                            return;
+                          }
+                          handleUnstake(idx);
+                        }} 
+                        className="bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-200 px-4 py-2 rounded-lg text-xs font-bold transition"
+                      >
+                        Withdraw Position
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleClaim(idx)} className="bg-slate-800 hover:bg-slate-700 border border-slate-600 px-4 py-2 rounded-lg text-xs font-bold transition">
-                      Claim
-                    </button>
-                    <button onClick={() => handleUnstake(idx)} className="bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-200 px-4 py-2 rounded-lg text-xs font-bold transition">
-                      Withdraw Position
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Transaction History Pipeline */}
         <div className="bg-slate-800 border border-slate-700 p-6 rounded-2xl">
           <h2 className="text-lg font-semibold mb-4 text-slate-200">Local Action Log</h2>
           {history.length === 0 ? (

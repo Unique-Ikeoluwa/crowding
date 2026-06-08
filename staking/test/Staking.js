@@ -3,7 +3,7 @@ import hre from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Staking", function () {
-  let staking, rewardToken, owner, user1, user2;
+  let staking, owner, user1, user2;
   let ONE_ETH, FIVE_ETH;
 
   before(async function () {
@@ -14,14 +14,11 @@ describe("Staking", function () {
   beforeEach(async function () {
     [owner, user1, user2] = await hre.ethers.getSigners();
 
-    const RewardToken = await hre.ethers.getContractFactory("MockERC20"); 
-    rewardToken = await RewardToken.deploy("Reward", "RWD");
-    await rewardToken.waitForDeployment();
-
     const Staking = await hre.ethers.getContractFactory("Staking");
-    staking = await Staking.deploy(await rewardToken.getAddress());
+    staking = await Staking.deploy();
     await staking.waitForDeployment();
-    await rewardToken.mint(await staking.getAddress(), hre.ethers.parseEther("1000"));
+
+    await staking.connect(owner).fundRewardPool({ value: hre.ethers.parseEther("10.0") });
   });
 
   describe("Staking", function () {
@@ -58,8 +55,15 @@ describe("Staking", function () {
       await staking.connect(user1).stake({ value: ONE_ETH });
       await time.increase(365 * 24 * 60 * 60);
 
-      await staking.connect(user1).claimReward(0);
-      expect(await rewardToken.balanceOf(user1.address)).to.be.gt(0n);
+      const balanceBefore = await hre.ethers.provider.getBalance(user1.address);
+      
+      const tx = await staking.connect(user1).claimReward(0);
+      const receipt = await tx.wait();
+      const gasCost = receipt.gasUsed * receipt.gasPrice;
+
+      const balanceAfter = await hre.ethers.provider.getBalance(user1.address);
+      
+      expect(balanceAfter).to.be.gt(balanceBefore - gasCost);
       
       const stake = await staking.userStakes(user1.address, 0);
       expect(stake.active).to.be.true;
