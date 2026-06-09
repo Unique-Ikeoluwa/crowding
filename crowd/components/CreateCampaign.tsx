@@ -25,7 +25,6 @@ export default function CreateCampaign({ provider }: CreateCampaignProps) {
       const signer = await provider.getSigner();
       const contract = new Contract(CONTRACT_ADDRESS, contractAbi, signer);
 
-      // Simple implementation: Create a campaign with 1 milestone matching the goal total
       const titles = [milestoneTitle || "Phase 1 Execution"];
       const amounts = [parseEther(milestoneAmount || goal)];
       
@@ -42,6 +41,14 @@ export default function CreateCampaign({ provider }: CreateCampaignProps) {
       
       await tx.wait();
       alert("Campaign successfully created!");
+
+      setTitle("");
+      setDescription("");
+      setGoal("");
+      setDuration("");
+      setMilestoneTitle("");
+      setMilestoneAmount("");
+
     } catch (error: any) {
       console.error(error);
       alert(`Execution Error: ${error.reason || error.message}`);
@@ -51,11 +58,43 @@ export default function CreateCampaign({ provider }: CreateCampaignProps) {
   return (
     <form onSubmit={handleCreate} className="p-6 bg-gray-800 text-white rounded-lg max-w-md mb-6">
       <h2 className="text-lg font-bold mb-4">Launch a Campaign</h2>
-      <input type="text" placeholder="Title" onChange={e => setTitle(e.target.value)} className="w-full p-2 mb-3 bg-gray-700 rounded" required />
-      <textarea placeholder="Description" onChange={e => setDescription(e.target.value)} className="w-full p-2 mb-3 bg-gray-700 rounded" required />
-      <input type="number" step="any" placeholder="Goal (ETH)" onChange={e => setGoal(e.target.value)} className="w-full p-2 mb-3 bg-gray-700 rounded" required />
-      <input type="number" placeholder="Duration (Days)" onChange={e => setDuration(e.target.value)} className="w-full p-2 mb-4 bg-gray-700 rounded" required />
-      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 py-2 rounded font-semibold">Publish to Sepolia</button>
+      
+      <input 
+        type="text" 
+        placeholder="Title" 
+        value={title}
+        onChange={e => setTitle(e.target.value)} 
+        className="w-full p-2 mb-3 bg-gray-700 rounded" 
+        required 
+      />
+      <textarea 
+        placeholder="Description" 
+        value={description}
+        onChange={e => setDescription(e.target.value)} 
+        className="w-full p-2 mb-3 bg-gray-700 rounded" 
+        required 
+      />
+      <input 
+        type="number" 
+        step="any" 
+        placeholder="Goal (ETH)" 
+        value={goal}
+        onChange={e => setGoal(e.target.value)} 
+        className="w-full p-2 mb-3 bg-gray-700 rounded" 
+        required 
+      />
+      <input 
+        type="number" 
+        placeholder="Duration (Days)" 
+        value={duration}
+        onChange={e => setDuration(e.target.value)} 
+        className="w-full p-2 mb-4 bg-gray-700 rounded" 
+        required 
+      />
+      
+      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 py-2 rounded font-semibold transition">
+        Publish to Sepolia
+      </button>
     </form>
   );
 }

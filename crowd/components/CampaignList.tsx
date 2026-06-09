@@ -48,16 +48,13 @@ export default function CampaignList({ provider }: CampaignListProps) {
     }
   }, [provider]);
 
-  // Handle baseline dynamic pull
   useEffect(() => {
     loadCampaigns();
   }, [loadCampaigns]);
 
-  // Real-time Event Subscription Loop
   useEffect(() => {
     if (!provider) return;
 
-    // Use a read-only instance or signer instance to trigger event subscriptions
     const contractInstance = new Contract(CONTRACT_ADDRESS, contractAbi, provider);
     activeContractRef.current = contractInstance;
 
@@ -68,13 +65,11 @@ export default function CampaignList({ provider }: CampaignListProps) {
       loadCampaigns();
     };
 
-    // Attach listeners to all state-changing events in your contract
     contractInstance.on("CampaignCreated", handleDataMutations);
     contractInstance.on("ContributionReceived", handleDataMutations);
     contractInstance.on("MilestoneRequested", handleDataMutations);
     contractInstance.on("RefundClaimed", handleDataMutations);
 
-    // Clean up loop explicitly to avoid memory leaks when components unmount
     return () => {
       if (activeContractRef.current) {
         console.log("Detaching event listener subscriptions...");

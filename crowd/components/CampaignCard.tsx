@@ -25,7 +25,7 @@ interface CampaignProps {
     goal: bigint;
     deadline: bigint;
     raisedAmount: bigint;
-    status: number; // 0: Funding, 1: Successful, 2: Failed
+    status: number;
     contributorsCount: bigint;
     allMilestonesApproved: boolean;
   };
